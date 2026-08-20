@@ -52,8 +52,15 @@ module.exports = {
     PAGE_SIZE: 25,
     MAX_RESULTS: 50,
     EMAIL_BODY_MAX_LENGTH: 50000,
-    DATE_FORMAT: 'es-ES'
+    DATE_FORMAT: 'es-ES',
+    MAX_ATTACHMENT_SIZE: 25 * 1024 * 1024 // 25MB
   },
+
+  // Where downloaded email attachments get written (get-attachment tool).
+  // Caller (e.g. nanobot) should point this at a per-user private dir via
+  // an env var when spawning this server, so files land somewhere the
+  // caller's own file tools can read them back.
+  ATTACHMENTS_DIR: process.env.ICLOUD_ATTACHMENTS_DIR || './attachments',
 
   // Email folder mappings
   EMAIL_FOLDERS: {

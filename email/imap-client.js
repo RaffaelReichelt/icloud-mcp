@@ -180,6 +180,63 @@ async function readEmail(uid, folder = 'inbox') {
 }
 
 /**
+ * Fetch a single attachment's content by filename (full content included,
+ * unlike readEmail() which strips attachments down to metadata).
+ */
+async function fetchAttachment(uid, folder = 'inbox', filename) {
+  return withImap(async (imap) => {
+    return new Promise((resolve, reject) => {
+      const folderName = getFolderName(folder);
+
+      imap.openBox(folderName, true, (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        const fetch = imap.fetch(uid, { bodies: '' });
+        let rawEmail = '';
+
+        fetch.on('message', (msg) => {
+          msg.on('body', (stream) => {
+            stream.on('data', (chunk) => rawEmail += chunk.toString('utf8'));
+          });
+        });
+
+        fetch.once('error', reject);
+        fetch.once('end', async () => {
+          try {
+            const parsed = await simpleParser(rawEmail);
+            const attachments = parsed.attachments || [];
+            const match = filename
+              ? attachments.find((a) => a.filename === filename)
+              : attachments[0];
+
+            if (!match) {
+              reject(new Error(
+                filename
+                  ? `Attachment "${filename}" not found on email ${uid}`
+                  : `Email ${uid} has no attachments`
+              ));
+              return;
+            }
+
+            resolve({
+              filename: match.filename,
+              contentType: match.contentType,
+              size: match.size,
+              content: match.content // Buffer
+            });
+          } catch (parseErr) {
+            reject(parseErr);
+          }
+        });
+      });
+    });
+  });
+}
+
+/**
  * Search emails
  */
 async function searchEmails(criteria, folder = 'inbox', count = 25) {
@@ -344,6 +401,7 @@ async function listFolders() {
 module.exports = {
   listEmails,
   readEmail,
+  fetchAttachment,
   searchEmails,
   markAsRead,
   listFolders,

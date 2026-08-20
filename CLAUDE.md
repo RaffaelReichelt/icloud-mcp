@@ -6,8 +6,8 @@ This MCP server provides Claude with access to Apple services via two modes:
 
 | Mode | Description | Services | Requirements |
 |------|-------------|----------|--------------|
-| **LOCAL** (default) | AppleScript access to macOS apps | 7 services, 31 tools | macOS |
-| **CLOUD** | iCloud protocols (IMAP, CalDAV, CardDAV) | 3 services, 17 tools | App-specific password |
+| **LOCAL** (default) | AppleScript access to macOS apps | 7 services, 32 tools | macOS |
+| **CLOUD** | iCloud protocols (IMAP, CalDAV, CardDAV) | 3 services, 18 tools | App-specific password |
 
 ## Services Available
 
@@ -51,6 +51,9 @@ USE_LOCAL_MODE=true    # true=AppleScript (fast), false=iCloud protocols
 # Only needed for cloud mode:
 ICLOUD_EMAIL=your-email@icloud.com
 ICLOUD_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+
+# Optional: where get-attachment writes downloaded files (default: ./attachments)
+ICLOUD_ATTACHMENTS_DIR=/path/to/writable/dir
 ```
 
 ## Architecture
@@ -91,15 +94,16 @@ icloud-mcp/
     └── error-handler.js
 ```
 
-## Tools (31 total in local mode)
+## Tools (32 total in local mode)
 
 ### Auth (2)
 - `about` - Server information
 - `check-auth-status` - Verify credentials
 
-### Email (6)
+### Email (7)
 - `list-emails` - List emails from folder
 - `read-email` - Read email content
+- `get-attachment` - Download an attachment to disk, return its path
 - `send-email` - Send email
 - `search-emails` - Search by criteria
 - `mark-as-read` - Mark read/unread

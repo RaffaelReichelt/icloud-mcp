@@ -3,7 +3,9 @@
  * Provides email tools via IMAP/SMTP
  */
 
-const { listEmails, readEmail, searchEmails, markAsRead, listFolders } = require('./imap-client');
+const fs = require('fs');
+const path = require('path');
+const { listEmails, readEmail, fetchAttachment, searchEmails, markAsRead, listFolders } = require('./imap-client');
 const { sendEmail } = require('./smtp-client');
 const { formatSuccess, formatError, withErrorHandler } = require('../utils/error-handler');
 const { formatDate, formatRelative } = require('../utils/date-utils');
@@ -61,6 +63,47 @@ UID: ${email.uid}
 ---
 
 ${body}${attachmentInfo}`
+  );
+}
+
+/**
+ * Handler: Get (download) attachment
+ */
+async function handleGetAttachment(args) {
+  if (!args.uid) {
+    return formatError(new Error('Email UID is required'));
+  }
+  if (!args.filename) {
+    return formatError(new Error('Attachment filename is required (see read-email for the list of attachments on this email)'));
+  }
+
+  const folder = args.folder || 'inbox';
+  const attachment = await fetchAttachment(args.uid, folder, args.filename);
+
+  if (attachment.size > config.DEFAULTS.MAX_ATTACHMENT_SIZE) {
+    return formatError(new Error(
+      `Attachment "${attachment.filename}" is ${Math.round(attachment.size / 1024 / 1024)}MB, ` +
+      `exceeds the ${Math.round(config.DEFAULTS.MAX_ATTACHMENT_SIZE / 1024 / 1024)}MB limit`
+    ));
+  }
+
+  // Sanitize: drop any directory components so a crafted attachment
+  // filename (or a caller-supplied one) can't escape ATTACHMENTS_DIR.
+  const safeName = path.basename(attachment.filename || `attachment-${args.uid}`);
+  const dir = config.ATTACHMENTS_DIR;
+  fs.mkdirSync(dir, { recursive: true });
+
+  let destPath = path.join(dir, safeName);
+  if (fs.existsSync(destPath)) {
+    const ext = path.extname(safeName);
+    const base = path.basename(safeName, ext);
+    destPath = path.join(dir, `${base}-${args.uid}${ext}`);
+  }
+
+  fs.writeFileSync(destPath, attachment.content);
+
+  return formatSuccess(
+    `Saved attachment "${attachment.filename}" (${attachment.contentType}, ${Math.round(attachment.size / 1024)}KB) to:\n${destPath}`
   );
 }
 
@@ -192,6 +235,29 @@ const emailTools = [
     handler: withErrorHandler(handleReadEmail, 'read-email')
   },
   {
+    name: 'get-attachment',
+    description: 'Downloads an email attachment and saves it to disk, returning the local file path. Use read-email first to see attachment filenames.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        uid: {
+          type: 'string',
+          description: 'The UID of the email the attachment is on'
+        },
+        filename: {
+          type: 'string',
+          description: 'Exact attachment filename, as shown by read-email'
+        },
+        folder: {
+          type: 'string',
+          description: 'Email folder (default: inbox)'
+        }
+      },
+      required: ['uid', 'filename']
+    },
+    handler: withErrorHandler(handleGetAttachment, 'get-attachment')
+  },
+  {
     name: 'send-email',
     description: 'Composes and sends an email',
     inputSchema: {
@@ -300,6 +366,7 @@ module.exports = {
   emailTools,
   handleListEmails,
   handleReadEmail,
+  handleGetAttachment,
   handleSendEmail,
   handleSearchEmails,
   handleMarkAsRead,

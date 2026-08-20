@@ -35,7 +35,7 @@ Uses AppleScript to access native macOS apps. **Faster, works offline, more serv
 
 | Service | App | Tools |
 |---------|-----|-------|
-| **Email** | Mail.app | 6 |
+| **Email** | Mail.app | 7 |
 | **Calendar** | Calendar.app | 5 |
 | **Contacts** | Contacts.app | 5 |
 | **Reminders** | Reminders.app | 7 |
@@ -56,7 +56,7 @@ Uses iCloud protocols (IMAP, CalDAV, CardDAV). Requires app-specific password.
 
 ## Features
 
-- **31 Tools** in local mode (17 in cloud mode)
+- **32 Tools** in local mode (18 in cloud mode)
 - **Dual Mode** - switch between local (fast) and cloud (remote access)
 - **7 Services** - Email, Calendar, Contacts, Reminders, Notes, Messages, Safari
 - **Secure Authentication** - AppleScript permissions or app-specific passwords
@@ -104,6 +104,9 @@ On first use, macOS will prompt for access to each app. Grant permission in **Sy
    USE_LOCAL_MODE=false
    ICLOUD_EMAIL=your-email@icloud.com
    ICLOUD_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+
+   # Optional: where get-attachment saves downloaded files (default: ./attachments)
+   ICLOUD_ATTACHMENTS_DIR=/path/to/writable/dir
    ```
 
 ### Add to Claude Desktop
@@ -132,12 +135,13 @@ Add to your Claude Desktop MCP settings (`~/Library/Application Support/Claude/c
 | `about` | Server information |
 | `check-auth-status` | Verify credentials |
 
-### Email (6)
+### Email (7)
 
 | Tool | Description |
 |------|-------------|
 | `list-emails` | List emails from a folder |
 | `read-email` | Read full email content |
+| `get-attachment` | Download an attachment to disk, return its path |
 | `send-email` | Compose and send email |
 | `search-emails` | Search by criteria |
 | `mark-as-read` | Mark read/unread |
