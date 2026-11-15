@@ -26,6 +26,23 @@
 
 ---
 
+## Fork notes: `nanobot-local` branch
+
+This branch ([RaffaelReichelt/icloud-mcp](https://github.com/RaffaelReichelt/icloud-mcp), branch `nanobot-local`) is the version used by the [nanobot](https://github.com/HKUDS/nanobot) agent gateway. It is based on an older upstream state (before the v2 SDK migration) and adds the following to **cloud mode** email:
+
+| Change | Description |
+|--------|-------------|
+| `get-attachment` | Downloads an attachment to `ICLOUD_ATTACHMENTS_DIR` and returns the saved path. Callers should point it at a per-user directory so their own file tools can read it back. |
+| `save-draft` | Stores a mail in the `Drafts` folder via IMAP APPEND. It **never sends**: the user reviews and sends it from their own mail client. Intended for agents that must not send mail unattended. |
+| Sent copy for `send-email` | SMTP does not file anything server-side, so mails sent through this server used to be missing from `Sent Messages`. The sent message is now appended there via IMAP (Bcc included). |
+| Richer `send-email` result | Reports the recipients accepted/rejected by the SMTP server and whether the Sent copy was saved. A failed Sent copy is a warning, not an error, because the mail was already delivered. |
+
+### Running without send access
+
+`send-email` really sends. To let an agent prepare mails but never send them, leave it out of the tool allowlist of the MCP client and enable `save-draft` instead. In nanobot this is `enabledTools` on the `icloud` server (list every tool except `send-email`; `"*"` enables all).
+
+---
+
 ## Overview
 
 This MCP server enables Claude to interact with your Apple services in two modes:
@@ -135,14 +152,15 @@ Add to your Claude Desktop MCP settings (`~/Library/Application Support/Claude/c
 | `about` | Server information |
 | `check-auth-status` | Verify credentials |
 
-### Email (7)
+### Email (8)
 
 | Tool | Description |
 |------|-------------|
 | `list-emails` | List emails from a folder |
 | `read-email` | Read full email content |
 | `get-attachment` | Download an attachment to disk, return its path |
-| `send-email` | Compose and send email |
+| `send-email` | Compose and send email (also saves a copy to `Sent Messages`) |
+| `save-draft` | Save an email to `Drafts` without sending (fork) |
 | `search-emails` | Search by criteria |
 | `mark-as-read` | Mark read/unread |
 | `list-folders` | List mail folders |
