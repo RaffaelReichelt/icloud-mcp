@@ -3,6 +3,8 @@
  */
 
 const nodemailer = require('nodemailer');
+const MailComposer = require('nodemailer/lib/mail-composer');
+const crypto = require('crypto');
 const config = require('../config');
 const { getCredentials } = require('../auth');
 
@@ -24,6 +26,17 @@ function createTransporter() {
 }
 
 /**
+ * Build the raw RFC822 message for a mail (Bcc kept, for the Sent copy).
+ */
+function buildRaw(mailOptions) {
+  return new Promise((resolve, reject) => {
+    const node = new MailComposer(mailOptions).compile();
+    node.keepBcc = true;
+    node.build((err, raw) => (err ? reject(err) : resolve(raw)));
+  });
+}
+
+/**
  * Send an email
  */
 async function sendEmail({ to, cc, bcc, subject, body, isHtml = false }) {
@@ -34,6 +47,7 @@ async function sendEmail({ to, cc, bcc, subject, body, isHtml = false }) {
     from: creds.email,
     to,
     subject,
+    messageId: `<${crypto.randomUUID()}@${creds.email.split('@')[1]}>`,
     [isHtml ? 'html' : 'text']: body
   };
 
@@ -42,8 +56,22 @@ async function sendEmail({ to, cc, bcc, subject, body, isHtml = false }) {
 
   try {
     const info = await transporter.sendMail(mailOptions);
+    // SMTP does not file a copy anywhere; do it ourselves so the mail shows up
+    // in "Sent Messages". A failure here must not turn a delivered mail into
+    // an error, so it is reported separately.
+    let sentCopy = true;
+    let sentCopyError;
+    try {
+      const { appendMessage } = require('./imap-client');
+      await appendMessage(await buildRaw(mailOptions), 'sent', ['\\Seen']);
+    } catch (err) {
+      sentCopy = false;
+      sentCopyError = err.message;
+    }
     return {
       success: true,
+      sentCopy,
+      sentCopyError,
       messageId: info.messageId,
       accepted: info.accepted,
       rejected: info.rejected
@@ -74,6 +102,7 @@ async function verifyConnection() {
 }
 
 module.exports = {
+  buildRaw,
   sendEmail,
   verifyConnection
 };

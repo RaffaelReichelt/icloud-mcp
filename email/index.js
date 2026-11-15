@@ -5,11 +5,12 @@
 
 const fs = require('fs');
 const path = require('path');
-const { listEmails, readEmail, fetchAttachment, searchEmails, markAsRead, listFolders } = require('./imap-client');
-const { sendEmail } = require('./smtp-client');
+const { appendMessage, listEmails, readEmail, fetchAttachment, searchEmails, markAsRead, listFolders } = require('./imap-client');
+const { sendEmail, buildRaw } = require('./smtp-client');
 const { formatSuccess, formatError, withErrorHandler } = require('../utils/error-handler');
 const { formatDate, formatRelative } = require('../utils/date-utils');
 const config = require('../config');
+const { getCredentials } = require('../auth');
 
 /**
  * Handler: List emails
@@ -108,6 +109,28 @@ async function handleGetAttachment(args) {
 }
 
 /**
+ * Handler: Save draft (never sends)
+ */
+async function handleSaveDraft(args) {
+  if (!args.to) return formatError(new Error('Recipient (to) is required'));
+  if (!args.subject) return formatError(new Error('Subject is required'));
+  if (!args.body) return formatError(new Error('Body is required'));
+
+  const raw = await buildRaw({
+    from: getCredentials().email,
+    to: args.to,
+    cc: args.cc,
+    bcc: args.bcc,
+    subject: args.subject,
+    [args.isHtml ? 'html' : 'text']: args.body
+  });
+  await appendMessage(raw, 'drafts', ['\\Draft', '\\Seen']);
+  return formatSuccess(
+    `Draft saved to "Drafts" (NOT sent). The user must review and send it from their mail client.\n\nTo: ${args.to}\nSubject: ${args.subject}`
+  );
+}
+
+/**
  * Handler: Send email
  */
 async function handleSendEmail(args) {
@@ -131,8 +154,12 @@ async function handleSendEmail(args) {
   });
 
   if (result.success) {
+    const rejected = result.rejected?.length ? `\nRejected by server: ${result.rejected.join(', ')}` : '';
+    const copy = result.sentCopy
+      ? 'A copy was saved to "Sent Messages".'
+      : `WARNING: mail was delivered but could not be saved to "Sent Messages" (${result.sentCopyError}).`;
     return formatSuccess(
-      `Email sent successfully!\n\nTo: ${args.to}${args.cc ? `\nCC: ${args.cc}` : ''}\nSubject: ${args.subject}\nMessage ID: ${result.messageId}`
+      `Email sent successfully!\n\nTo: ${args.to}${args.cc ? `\nCC: ${args.cc}` : ''}\nSubject: ${args.subject}\nMessage ID: ${result.messageId}\nAccepted by server: ${(result.accepted || []).join(', ')}${rejected}\n${copy}`
     );
   } else {
     return formatError(new Error('Failed to send email'));
@@ -291,6 +318,23 @@ const emailTools = [
       required: ['to', 'subject', 'body']
     },
     handler: withErrorHandler(handleSendEmail, 'send-email')
+  },
+  {
+    name: 'save-draft',
+    description: 'Saves an email as a draft in the Drafts folder. Does NOT send anything; the user reviews and sends it from their own mail client.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        to: { type: 'string', description: 'Recipient email address(es), comma-separated' },
+        cc: { type: 'string', description: 'CC recipient(s), comma-separated' },
+        bcc: { type: 'string', description: 'BCC recipient(s), comma-separated' },
+        subject: { type: 'string', description: 'Email subject' },
+        body: { type: 'string', description: 'Email body content' },
+        isHtml: { type: 'boolean', description: 'Whether the body is HTML (default: false)' }
+      },
+      required: ['to', 'subject', 'body']
+    },
+    handler: withErrorHandler(handleSaveDraft, 'save-draft')
   },
   {
     name: 'search-emails',

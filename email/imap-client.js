@@ -398,7 +398,21 @@ async function listFolders() {
   });
 }
 
+/**
+ * Append a raw RFC822 message to a folder (used for Sent copies and drafts,
+ * since SMTP alone never files anything server-side).
+ */
+function appendMessage(raw, folder, flags = []) {
+  return withImap((imap) => new Promise((resolve, reject) => {
+    imap.append(raw, { mailbox: getFolderName(folder), flags }, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  }));
+}
+
 module.exports = {
+  appendMessage,
   listEmails,
   readEmail,
   fetchAttachment,
