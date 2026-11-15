@@ -33,7 +33,7 @@ This branch ([RaffaelReichelt/icloud-mcp](https://github.com/RaffaelReichelt/icl
 | Change | Description |
 |--------|-------------|
 | `get-attachment` | Downloads an attachment to `ICLOUD_ATTACHMENTS_DIR` and returns the saved path. Callers should point it at a per-user directory so their own file tools can read it back. |
-| `save-draft` | Stores a mail in the `Drafts` folder via IMAP APPEND. It **never sends**: the user reviews and sends it from their own mail client. Intended for agents that must not send mail unattended. |
+| `save-draft` | Stores a mail in the `Drafts` folder via IMAP APPEND. It **never sends**: the user reviews and sends it from their own mail client. Intended for agents that must not send mail unattended. It returns a `Draft ID`; passing it as `replaces` on a later call swaps the old draft for the revised one instead of piling up copies. |
 | Sent copy for `send-email` | SMTP does not file anything server-side, so mails sent through this server used to be missing from `Sent Messages`. The sent message is now appended there via IMAP (Bcc included). |
 | Richer `send-email` result | Reports the recipients accepted/rejected by the SMTP server and whether the Sent copy was saved. A failed Sent copy is a warning, not an error, because the mail was already delivered. |
 

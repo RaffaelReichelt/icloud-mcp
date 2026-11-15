@@ -4,8 +4,9 @@
  */
 
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
-const { appendMessage, listEmails, readEmail, fetchAttachment, searchEmails, markAsRead, listFolders } = require('./imap-client');
+const { appendMessage, deleteByMessageId, listEmails, readEmail, fetchAttachment, searchEmails, markAsRead, listFolders } = require('./imap-client');
 const { sendEmail, buildRaw } = require('./smtp-client');
 const { formatSuccess, formatError, withErrorHandler } = require('../utils/error-handler');
 const { formatDate, formatRelative } = require('../utils/date-utils');
@@ -116,17 +117,34 @@ async function handleSaveDraft(args) {
   if (!args.subject) return formatError(new Error('Subject is required'));
   if (!args.body) return formatError(new Error('Body is required'));
 
+  const creds = getCredentials();
+  const messageId = `<${crypto.randomUUID()}@${creds.email.split('@')[1]}>`;
   const raw = await buildRaw({
-    from: getCredentials().email,
+    from: creds.email,
+    messageId,
     to: args.to,
     cc: args.cc,
     bcc: args.bcc,
     subject: args.subject,
     [args.isHtml ? 'html' : 'text']: args.body
   });
+  // Append the new version first, so a failure never loses the old draft.
   await appendMessage(raw, 'drafts', ['\\Draft', '\\Seen']);
+
+  let replaced = '';
+  if (args.replaces) {
+    try {
+      const n = await deleteByMessageId(args.replaces, 'drafts');
+      replaced = n
+        ? '\nThe previous draft was replaced.'
+        : '\nWARNING: the previous draft was not found (the user may have edited or sent it), so the old and new drafts now both exist.';
+    } catch (err) {
+      replaced = `\nWARNING: could not remove the previous draft (${err.message}); both drafts now exist.`;
+    }
+  }
+
   return formatSuccess(
-    `Draft saved to "Drafts" (NOT sent). The user must review and send it from their mail client.\n\nTo: ${args.to}\nSubject: ${args.subject}`
+    `Draft saved to "Drafts" (NOT sent). The user must review and send it from their mail client.\n\nTo: ${args.to}\nSubject: ${args.subject}\nDraft ID: ${messageId}${replaced}\n\nIf the user asks for changes, call save-draft again with the complete revised mail and replaces="${messageId}" instead of creating a new draft.`
   );
 }
 
@@ -330,7 +348,8 @@ const emailTools = [
         bcc: { type: 'string', description: 'BCC recipient(s), comma-separated' },
         subject: { type: 'string', description: 'Email subject' },
         body: { type: 'string', description: 'Email body content' },
-        isHtml: { type: 'boolean', description: 'Whether the body is HTML (default: false)' }
+        isHtml: { type: 'boolean', description: 'Whether the body is HTML (default: false)' },
+        replaces: { type: 'string', description: 'Draft ID returned by an earlier save-draft call. Pass it when revising that draft, so the old version is replaced instead of a second draft being created.' }
       },
       required: ['to', 'subject', 'body']
     },

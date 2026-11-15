@@ -411,8 +411,29 @@ function appendMessage(raw, folder, flags = []) {
   }));
 }
 
+/**
+ * Delete all messages in a folder whose Message-ID header matches.
+ * Returns how many were removed (0 if none matched).
+ */
+function deleteByMessageId(messageId, folder) {
+  return withImap((imap) => new Promise((resolve, reject) => {
+    imap.openBox(getFolderName(folder), false, (err) => {
+      if (err) return reject(err);
+      imap.search([['HEADER', 'MESSAGE-ID', messageId]], (err, uids) => {
+        if (err) return reject(err);
+        if (!uids.length) return resolve(0);
+        imap.addFlags(uids, ['\\Deleted'], (err) => {
+          if (err) return reject(err);
+          imap.expunge((err) => (err ? reject(err) : resolve(uids.length)));
+        });
+      });
+    });
+  }));
+}
+
 module.exports = {
   appendMessage,
+  deleteByMessageId,
   listEmails,
   readEmail,
   fetchAttachment,
